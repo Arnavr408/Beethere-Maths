@@ -31,11 +31,27 @@
     <pre id="log-content">Loading logs…</pre>
 
     <script>
-        // Always fetch the latest version (avoid browser caching)
         fetch("attendance_log.txt?cache=" + Date.now())
             .then(response => response.text())
             .then(text => {
-                document.getElementById("log-content").textContent = text;
+                let lines = text.trim().split("\n");
+
+                // Extract date from each line (assuming format YYYY-MM-DD somewhere in line)
+                let sorted = lines.map(line => {
+                    const dateMatch = line.match(/\d{4}-\d{2}-\d{2}/);
+                    return {
+                        date: dateMatch ? new Date(dateMatch[0]) : new Date(0),
+                        raw: line
+                    };
+                });
+
+                // Sort newest → oldest
+                sorted.sort((a, b) => b.date - a.date);
+
+                // Join back
+                const output = sorted.map(item => item.raw).join("\n");
+
+                document.getElementById("log-content").textContent = output;
             })
             .catch(err => {
                 document.getElementById("log-content").textContent =
