@@ -6,7 +6,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 700px;
+            max-width: 750px;
             margin: auto;
             padding: 20px;
             background: #f5f5f5;
@@ -17,7 +17,7 @@
         pre {
             white-space: pre-wrap;
             padding: 20px;
-            background: #ffffff;
+            background: #fff;
             border-radius: 8px;
             border: 1px solid #ccc;
             box-shadow: 0 0 10px rgba(0,0,0,0.05);
@@ -27,33 +27,76 @@
 </head>
 <body>
     <h1>Attendance Logs</h1>
-
     <pre id="log-content">Loading logs…</pre>
 
     <script>
         fetch("attendance_log.txt?cache=" + Date.now())
-            .then(response => response.text())
+            .then(res => res.text())
             .then(text => {
                 let lines = text.trim().split("\n");
 
-                // Extract date from each line (assuming format YYYY-MM-DD somewhere in line)
-                let sorted = lines.map(line => {
-                    const dateMatch = line.match(/\d{4}-\d{2}-\d{2}/);
-                    return {
-                        date: dateMatch ? new Date(dateMatch[0]) : new Date(0),
-                        raw: line
-                    };
+                let months = {};
+                let currentMonth = null;
+
+                // Parse line-by-line and organize into month groups
+                for (let line of lines) {
+                    // Detect month header like "OCTOBER 2024"
+                    if (/^[A-Z]+\s+\d{4}$/.test(line.trim())) {
+                        currentMonth = line.trim();
+                        months[currentMonth] = { entries: [], summary: [] };
+                        continue;
+                    }
+
+                    // Detect summary line
+                    if (/^TOTAL CLASSES/.test(line.trim())) {
+                        months[currentMonth].summary.push(line.trim());
+                        continue;
+                    }
+
+                    // Attendance entries
+                    let dateMatch = line.match(/\d{4}-\d{2}-\d{2}/);
+                    if (dateMatch) {
+                        months[currentMonth].entries.push({
+                            date: new Date(dateMatch[0]),
+                            raw: line
+                        });
+                    }
+                }
+
+                // Sort months newest → oldest
+                let sortedMonths = Object.keys(months).sort((a, b) => {
+                    let yearA = parseInt(a.split(" ")[1]);
+                    let yearB = parseInt(b.split(" ")[1]);
+
+                    if (yearA !== yearB) return yearB - yearA;
+
+                    const monthNames = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+                    let monthA = monthNames.indexOf(a.split(" ")[0]);
+                    let monthB = monthNames.indexOf(b.split(" ")[0]);
+
+                    return monthB - monthA; // newest first
                 });
 
-                // Sort newest → oldest
-                sorted.sort((a, b) => b.date - a.date);
+                // Build final output
+                let finalOutput = [];
 
-                // Join back
-                const output = sorted.map(item => item.raw).join("\n");
+                for (let m of sortedMonths) {
+                    finalOutput.push(m); // Month name
 
-                document.getElementById("log-content").textContent = output;
+                    // Sort entries inside month: newest → oldest
+                    let sortedEntries = months[m].entries.sort((a, b) => b.date - a.date);
+                    sortedEntries.forEach(e => finalOutput.push(e.raw));
+
+                    // Add summary lines
+                    months[m].summary.forEach(s => finalOutput.push(s));
+
+                    finalOutput.push(""); // blank line between months
+                }
+
+                document.getElementById("log-content").textContent =
+                    finalOutput.join("\n");
             })
-            .catch(err => {
+            .catch(() => {
                 document.getElementById("log-content").textContent =
                     "Error loading attendance logs.";
             });
